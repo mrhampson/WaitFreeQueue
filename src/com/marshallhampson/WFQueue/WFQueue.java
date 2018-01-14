@@ -73,9 +73,14 @@ public class WFQueue<T> {
           if (isStillPending(tid, phase)) {
             if (last.getNext().compareAndSet(next, this.stateArray.get(tid).getNode())) {
               help_finish_enqueue();
+              return;
             }
           }
         }
+      // Some enqueue is in progress
+      } else {
+        // help it first then retry
+        help_finish_enqueue();
       }
     }
   }
@@ -99,9 +104,9 @@ public class WFQueue<T> {
   public T dequeue() throws EmptyQueueException {
     long phase = maxPhase() + 1;
     int currentTid = 0; // TODO how to get thread id from current thread and map to array index
-    this.stateArray.set(currentTid, new OpDescription<T>(phase, true, false, null));
+    this.stateArray.set(currentTid, new OpDescription<>(phase, true, false, null));
     this.help(phase);
-    // this.help_finish_dequeue
+    this.help_finish_deq();
     Node<T> node = this.stateArray.get(currentTid).getNode();
     if (node == null) {
       throw new EmptyQueueException();
@@ -127,16 +132,16 @@ public class WFQueue<T> {
             }
           // Some enqueue is in progress
           } else {
-            // help it first theen retry
+            // help it first then retry
             help_finish_enqueue();
           }
-        }
         // Queue is not empty
-        else {
+        } else {
           OpDescription<T> currentDescription = this.stateArray.get(tid);
           Node<T> node = currentDescription.getNode();
-          if (!isStillPending(tid, phase))
+          if (!isStillPending(tid, phase)) {
             break;
+          }
           if (first == this.head.get() && node != first) {
             OpDescription<T> newDescription = 
               new OpDescription<>(this.stateArray.get(tid).getPhase(), true, false, first);
