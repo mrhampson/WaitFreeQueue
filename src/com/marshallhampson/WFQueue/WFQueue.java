@@ -14,8 +14,9 @@ public class WFQueue<T> {
   private AtomicReferenceArray<OpDescription<T>> stateArray;
 
   public WFQueue() {
-    this.head = new AtomicReference<>(new Node<T>(null, -1));
-    this.tail = new AtomicReference<>(new Node<T>(null, -1));
+    Node<T> sentinel = new Node<>(null, -1);
+    this.head = new AtomicReference<>(sentinel);
+    this.tail = new AtomicReference<>(sentinel);
     this.stateArray = new AtomicReferenceArray<>(NUM_THREADS);
     
     for (int i = 0; i < this.stateArray.length(); i++) {
