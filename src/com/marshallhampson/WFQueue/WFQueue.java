@@ -1,53 +1,64 @@
 package com.marshallhampson.WFQueue;
 
-import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
+ * A wait free queue implementation based on the paper 
+ * "Wait-Free Queues With Multiple Enqueuers and Dequeuers" by Kogan and Petrank
  * @author Marshall Hampson
  */
 public class WFQueue<T> {
   
-  private final int maxThreads;
   private final AtomicReference<Node<T>> head;
   private final AtomicReference<Node<T>> tail;
   private final AtomicReferenceArray<OpDescription<T>> stateArray;
   private final AtomicLongArray threadIdArray;
 
+  /**
+   * Constructs a new {@link WFQueue}
+   * @param maxThreads the maximum number of uniqueue threads that may access this queue
+   */
   public WFQueue(int maxThreads) {
-    this.maxThreads = maxThreads;
+    if (maxThreads < 1) {
+      throw new IllegalArgumentException("Must have at least one thread");
+    }
     Node<T> sentinel = new Node<>(null, -1);
     this.head = new AtomicReference<>(sentinel);
     this.tail = new AtomicReference<>(sentinel);
-    this.threadIdArray = new AtomicLongArray(this.maxThreads);
+    this.threadIdArray = new AtomicLongArray(maxThreads);
     for (int i = 0; i < this.threadIdArray.length(); i++) {
       this.threadIdArray.set(i, -1);
     }
-    this.stateArray = new AtomicReferenceArray<>(this.maxThreads);
+    this.stateArray = new AtomicReferenceArray<>(maxThreads);
     for (int i = 0; i < this.stateArray.length(); i++) {
       this.stateArray.set(i, new OpDescription<>(-1, false, true, null));
     }
   }
 
   /**
-   * Helps finish pending operations left by other threads
-   * @param phase the current phase
+   * Allows threads to finish pending operations with phase less than or equal to the phase 
+   * left behind by other threads
+   * @param phase the phase to complete
    */
   private void help(long phase) {
     for (int i = 0; i < this.stateArray.length(); i++) {
       OpDescription<T> description = this.stateArray.get(i);
       if (description.isPending() && description.getPhase() <= phase) {
         if (description.isEnqueue()) {
-          help_enq(i, phase);
+          helpEnqueue(i, phase);
         } else {
-          help_deq(i, phase);
+          helpDequeue(i, phase);
         }
       }
     }
   }
 
+  /**
+   * Finds the maxPhase of all the operations in the stateArray
+   * @return the maxPhase 
+   */
   private long maxPhase() {
     long maxPhase = -1;
     for (int i = 0; i < this.stateArray.length(); i++) {
@@ -59,6 +70,12 @@ public class WFQueue<T> {
     return maxPhase;
   }
 
+  /**
+   * Checks to see if there are any operations for the given thread and phase are still pending 
+   * @param tid the thread id
+   * @param phase the phase number
+   * @return true if there's a pending operation in the state array for the given thread and phase, false otherwise
+   */
   private boolean isStillPending(int tid, long phase) {
     return this.stateArray.get(tid).isPending() && this.stateArray.get(tid).getPhase() <= phase;
   }
@@ -91,16 +108,26 @@ public class WFQueue<T> {
     }
     return currentTid;
   }
-  
+
+  /**
+   * Enqueues a value
+   * @param value the value to enqueue
+   * @throws MaxThreadsExceededException if too many unique threads have accessed the queue
+   */
   public void enqueue(T value) throws MaxThreadsExceededException {
     long phase = maxPhase() + 1;
     int currentTid = mapJavaThreadToQueueThreadId(Thread.currentThread());
-    this.stateArray.set(currentTid, new OpDescription<T>(phase, true, true, new Node<T>(value, currentTid)));
+    this.stateArray.set(currentTid, new OpDescription<>(phase, true, true, new Node<T>(value, currentTid)));
     this.help(phase);
-    help_finish_enqueue();
+    finishEnqueue();
   }
 
-  private void help_enq(int tid, long phase) {
+  /**
+   * Allows another thread to complete a pending enqueue operation left behind by another thread
+   * @param tid the id of the thread that left this enqueue operation behind
+   * @param phase the phase of the thread actually calling this method
+   */
+  private void helpEnqueue(int tid, long phase) {
     while(isStillPending(tid, phase)) {
       Node<T> last = this.tail.get();
       Node<T> next = last.getNext().get();
@@ -109,7 +136,7 @@ public class WFQueue<T> {
         if (next == null) {
           if (isStillPending(tid, phase)) {
             if (last.getNext().compareAndSet(next, this.stateArray.get(tid).getNode())) {
-              help_finish_enqueue();
+              finishEnqueue();
               return;
             }
           }
@@ -117,12 +144,15 @@ public class WFQueue<T> {
       // Some enqueue is in progress
       } else {
         // help it first then retry
-        help_finish_enqueue();
+        finishEnqueue();
       }
     }
   }
 
-  private void help_finish_enqueue() {
+  /**
+   * Method that completes the enqueue operation
+   */
+  private void finishEnqueue() {
     Node<T> last = this.tail.get();
     Node<T> next = last.getNext().get();
     if (next != null) {
@@ -137,21 +167,32 @@ public class WFQueue<T> {
       }
     }
   }
-  
+
+  /**
+   * Dequeues an element from the queue
+   * @return the value of the element in the queue
+   * @throws EmptyQueueException if we have tried to dequeue an empty queue
+   * @throws MaxThreadsExceededException if we have accessed the queue from too many unique threads
+   */
   public T dequeue() throws EmptyQueueException, MaxThreadsExceededException {
     long phase = maxPhase() + 1;
     int currentTid = mapJavaThreadToQueueThreadId(Thread.currentThread());
     this.stateArray.set(currentTid, new OpDescription<>(phase, true, false, null));
     this.help(phase);
-    this.help_finish_deq();
+    this.finishDequeue();
     Node<T> node = this.stateArray.get(currentTid).getNode();
     if (node == null) {
       throw new EmptyQueueException();
     }
     return node.getNext().get().getValue();
   }
-  
-  private void help_deq(int tid, long phase) {
+
+  /**
+   * Helps a thread finish a pending dequeue operation left behind by another thread
+   * @param tid the thread id of the thread that left this dequeue operation behind
+   * @param phase the phase of the calling thread
+   */
+  private void helpDequeue(int tid, long phase) {
     while (isStillPending(tid, phase)) {
       Node<T> first = this.head.get();
       Node<T> last = this.tail.get();
@@ -170,7 +211,7 @@ public class WFQueue<T> {
           // Some enqueue is in progress
           } else {
             // help it first then retry
-            help_finish_enqueue();
+            finishEnqueue();
           }
         // Queue is not empty
         } else {
@@ -187,13 +228,16 @@ public class WFQueue<T> {
             }
           }
           first.getDeqTid().compareAndSet(-1, tid);
-          help_finish_deq();
+          finishDequeue();
         }
       } 
     }
   }
-  
-  private void help_finish_deq() {
+
+  /**
+   * Finishes a dequeue operation
+   */
+  private void finishDequeue() {
     Node<T> first = this.head.get();
     Node<T> next = first.getNext().get();
     int tid = first.getDeqTid().get();

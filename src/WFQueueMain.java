@@ -22,8 +22,7 @@ public class WFQueueMain {
   
   private static void printStackTrace(StackTraceElement[] stackTraceElements) {
     if (stackTraceElements != null) {
-      for (int i = 0; i < stackTraceElements.length; i++) {
-        StackTraceElement element = stackTraceElements[i];
+      for (StackTraceElement element : stackTraceElements) {
         if (element != null) {
           System.out.println('\t' + element.toString());
         }
