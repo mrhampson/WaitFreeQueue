@@ -8,6 +8,12 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 /**
  * A wait free queue implementation based on the paper 
  * "Wait-Free Queues With Multiple Enqueuers and Dequeuers" by Kogan and Petrank
+ * 
+ * The general idea is that all incoming operations on the queue by all threads are assigned a unique "phase" number
+ * If a thread happens to be interrupted while it is enqueueing some other concurrently running thread will be able
+ * to complete it's operation. This is because all threads must try to complete any pending operations from other threads
+ * in the state array before finishing its own operation. 
+ * 
  * @author Marshall Hampson
  */
 public class WFQueue<T> {
