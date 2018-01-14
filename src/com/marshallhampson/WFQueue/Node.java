@@ -6,34 +6,27 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * @author Marshall Hampson
  */
-class Node {
-  private int value;
-  private AtomicReference<Node> next;
+class Node<T> {
+  private final T value;
+  private final AtomicReference<Node<T>> next;
   /** the enqueueing thread id*/
-  private int enqTid;
+  private final int enqTid;
   /** the dequeueing thread id*/
-  private AtomicInteger deqTid;
+  private final AtomicInteger deqTid;
   
-  public Node(int value, int enqTid) {
+  public Node(T value, int enqTid) {
     this.value = value;
     this.enqTid = enqTid;
     this.deqTid = new AtomicInteger(-1);
+    this.next = new AtomicReference<>(null);
   }
 
-  public int getValue() {
+  public T getValue() {
     return value;
   }
 
-  public void setValue(int value) {
-    this.value = value;
-  }
-
-  public AtomicReference<Node> getNext() {
+  public AtomicReference<Node<T>> getNext() {
     return next;
-  }
-
-  public void setNext(AtomicReference<Node> next) {
-    this.next = next;
   }
 
   /**
@@ -43,10 +36,6 @@ class Node {
   public int getEnqTid() {
     return enqTid;
   }
-  
-  public void setEnqTid(int enqTid) {
-    this.enqTid = enqTid;
-  }
 
   /**
    * Gets the dequeueing thread id
@@ -54,9 +43,5 @@ class Node {
    */
   public AtomicInteger getDeqTid() {
     return deqTid;
-  }
-
-  public void setDeqTid(AtomicInteger deqTid) {
-    this.deqTid = deqTid;
   }
 }

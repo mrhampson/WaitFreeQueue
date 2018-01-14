@@ -3,14 +3,14 @@ package com.marshallhampson.WFQueue;
 /**
  * @author Marshall Hampson
  */
-class OpDescription {
+class OpDescription<T> {
   /** the phase at which the thread has performed its last operation on the queue */
-  private long phase;
-  private boolean pending;
-  private boolean enqueue;
-  private Node node;
+  private final long phase;
+  private final boolean pending;
+  private final boolean enqueue;
+  private final Node<T> node;
   
-  public OpDescription(long phase, boolean pending, boolean enqueue, Node node) {
+  public OpDescription(long phase, boolean pending, boolean enqueue, Node<T> node) {
     this.phase = phase;
     this.pending = pending;
     this.enqueue = enqueue;
@@ -21,31 +21,15 @@ class OpDescription {
     return phase;
   }
 
-  public void setPhase(long phase) {
-    this.phase = phase;
-  }
-
   public boolean isPending() {
     return pending;
-  }
-
-  public void setPending(boolean pending) {
-    this.pending = pending;
   }
 
   public boolean isEnqueue() {
     return enqueue;
   }
 
-  public void setEnqueue(boolean enqueue) {
-    this.enqueue = enqueue;
-  }
-
-  public Node getNode() {
+  public Node<T> getNode() {
     return node;
-  }
-
-  public void setNode(Node node) {
-    this.node = node;
   }
 }
