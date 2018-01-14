@@ -1,5 +1,7 @@
 package com.marshallhampson.WFQueue;
 
+import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -7,18 +9,23 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * @author Marshall Hampson
  */
 public class WFQueue<T> {
-  private static final int NUM_THREADS = 1;
   
-  private AtomicReference<Node<T>> head;
-  private AtomicReference<Node<T>> tail;
-  private AtomicReferenceArray<OpDescription<T>> stateArray;
+  private final int maxThreads;
+  private final AtomicReference<Node<T>> head;
+  private final AtomicReference<Node<T>> tail;
+  private final AtomicReferenceArray<OpDescription<T>> stateArray;
+  private final AtomicLongArray threadIdArray;
 
-  public WFQueue() {
+  public WFQueue(int maxThreads) {
+    this.maxThreads = maxThreads;
     Node<T> sentinel = new Node<>(null, -1);
     this.head = new AtomicReference<>(sentinel);
     this.tail = new AtomicReference<>(sentinel);
-    this.stateArray = new AtomicReferenceArray<>(NUM_THREADS);
-    
+    this.threadIdArray = new AtomicLongArray(this.maxThreads);
+    for (int i = 0; i < this.threadIdArray.length(); i++) {
+      this.threadIdArray.set(i, -1);
+    }
+    this.stateArray = new AtomicReferenceArray<>(this.maxThreads);
     for (int i = 0; i < this.stateArray.length(); i++) {
       this.stateArray.set(i, new OpDescription<>(-1, false, true, null));
     }
@@ -55,10 +62,39 @@ public class WFQueue<T> {
   private boolean isStillPending(int tid, long phase) {
     return this.stateArray.get(tid).isPending() && this.stateArray.get(tid).getPhase() <= phase;
   }
+
+  /**
+   * Maps the java thread id to the queue thread id aka the index in the state array
+   * @param thread the thread to find a mapping for
+   * @return the queue's thread id (index in state array) for this thread 
+   * @throws MaxThreadsExceededException if we have no more room in the state array for another unique thread
+   */
+  private int mapJavaThreadToQueueThreadId(Thread thread) throws MaxThreadsExceededException {
+    // Find the queue's thread id for the current thread
+    long javaTid = thread.getId();
+    int currentTid = -1;
+    for (int i = 0; i < this.threadIdArray.length(); i++) {
+      // We've found an empty slot in the threadId array
+      if (this.threadIdArray.compareAndSet(i, -1, javaTid)) {
+        currentTid = i;
+        break;
+      }
+      // We found a matching id
+      if (this.threadIdArray.get(i) == javaTid) {
+        currentTid = i;
+        break;
+      }
+    }
+    // We didn't find the java thread id in the array and there were no more empty slots
+    if (currentTid == -1) {
+      throw new MaxThreadsExceededException();
+    }
+    return currentTid;
+  }
   
-  public void enqueue(T value) {
+  public void enqueue(T value) throws MaxThreadsExceededException {
     long phase = maxPhase() + 1;
-    int currentTid = 0; // TODO how to get thread id from current thread and map to array index
+    int currentTid = mapJavaThreadToQueueThreadId(Thread.currentThread());
     this.stateArray.set(currentTid, new OpDescription<T>(phase, true, true, new Node<T>(value, currentTid)));
     this.help(phase);
     help_finish_enqueue();
@@ -102,9 +138,9 @@ public class WFQueue<T> {
     }
   }
   
-  public T dequeue() throws EmptyQueueException {
+  public T dequeue() throws EmptyQueueException, MaxThreadsExceededException {
     long phase = maxPhase() + 1;
-    int currentTid = 0; // TODO how to get thread id from current thread and map to array index
+    int currentTid = mapJavaThreadToQueueThreadId(Thread.currentThread());
     this.stateArray.set(currentTid, new OpDescription<>(phase, true, false, null));
     this.help(phase);
     this.help_finish_deq();

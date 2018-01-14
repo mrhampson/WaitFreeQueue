@@ -1,4 +1,5 @@
 import com.marshallhampson.WFQueue.EmptyQueueException;
+import com.marshallhampson.WFQueue.MaxThreadsExceededException;
 import com.marshallhampson.WFQueue.WFQueue;
 
 /**
@@ -8,13 +9,13 @@ public class WFQueueMain {
   
   public static void main(String... args) {
     try {
-      WFQueue<Integer> wfQueue = new WFQueue<>();
+      WFQueue<Integer> wfQueue = new WFQueue<>(1);
       wfQueue.enqueue(1);
       Integer deqInt = wfQueue.dequeue();
       assert deqInt == 2;
     }
-    catch (EmptyQueueException e) {
-      System.out.println("Empty queue exception occurred");
+    catch (MaxThreadsExceededException | EmptyQueueException e) {
+      System.out.println(e.getClass().getSimpleName() + " exception occurred");
       printStackTrace(e.getStackTrace());
     }
   }
