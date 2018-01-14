@@ -96,7 +96,7 @@ public class WFQueue<T> {
     }
   }
   
-  public T dequeue() throws Exception {
+  public T dequeue() throws EmptyQueueException {
     long phase = maxPhase() + 1;
     int currentTid = 1; // TODO how to get thread id from current thread and map to array index
     this.stateArray.set(currentTid, new OpDescription<T>(phase, true, false, null));
