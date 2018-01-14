@@ -10,8 +10,8 @@ public class WFQueueMain {
     try {
       WFQueue<Integer> wfQueue = new WFQueue<>();
       wfQueue.enqueue(1);
-
-      wfQueue.dequeue();
+      Integer deqInt = wfQueue.dequeue();
+      assert deqInt == 2;
     }
     catch (EmptyQueueException e) {
       System.out.println("Empty queue exception occurred");

@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * @author Marshall Hampson
  */
 public class WFQueue<T> {
-  private static final int NUM_THREADS = 4;
+  private static final int NUM_THREADS = 1;
   
   private AtomicReference<Node<T>> head;
   private AtomicReference<Node<T>> tail;
@@ -57,7 +57,7 @@ public class WFQueue<T> {
   
   public void enqueue(T value) {
     long phase = maxPhase() + 1;
-    int currentTid = 1; // TODO how to get thread id from current thread and map to array index
+    int currentTid = 0; // TODO how to get thread id from current thread and map to array index
     this.stateArray.set(currentTid, new OpDescription<T>(phase, true, true, new Node<T>(value, currentTid)));
     this.help(phase);
     help_finish_enqueue();
@@ -98,7 +98,7 @@ public class WFQueue<T> {
   
   public T dequeue() throws EmptyQueueException {
     long phase = maxPhase() + 1;
-    int currentTid = 1; // TODO how to get thread id from current thread and map to array index
+    int currentTid = 0; // TODO how to get thread id from current thread and map to array index
     this.stateArray.set(currentTid, new OpDescription<T>(phase, true, false, null));
     this.help(phase);
     // this.help_finish_dequeue

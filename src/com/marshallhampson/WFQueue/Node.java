@@ -14,7 +14,7 @@ class Node<T> {
   /** the dequeueing thread id*/
   private final AtomicInteger deqTid;
   
-  public Node(T value, int enqTid) {
+  Node(T value, int enqTid) {
     this.value = value;
     this.enqTid = enqTid;
     this.deqTid = new AtomicInteger(-1);

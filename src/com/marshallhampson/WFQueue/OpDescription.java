@@ -10,7 +10,7 @@ class OpDescription<T> {
   private final boolean enqueue;
   private final Node<T> node;
   
-  public OpDescription(long phase, boolean pending, boolean enqueue, Node<T> node) {
+  OpDescription(long phase, boolean pending, boolean enqueue, Node<T> node) {
     this.phase = phase;
     this.pending = pending;
     this.enqueue = enqueue;
